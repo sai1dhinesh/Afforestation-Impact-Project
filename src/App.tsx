@@ -28,10 +28,15 @@ import {
   Wind, 
   ShieldCheck,
   ChevronRight,
-  Calculator
+  Calculator,
+  Save,
+  FolderOpen,
+  Trash2,
+  Plus,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { TREE_SPECIES, TreeSpecies, SimulationResult, SoilType, RainfallLevel } from './types';
+import { TREE_SPECIES, TreeSpecies, SimulationResult, SoilType, RainfallLevel, SimulationScenario } from './types';
 import { cn } from './lib/utils';
 
 export default function App() {
@@ -44,6 +49,56 @@ export default function App() {
   const [isBriefOpen, setIsBriefOpen] = useState(false);
   const [isComparisonMode, setIsComparisonMode] = useState(false);
   const [activeMetric, setActiveMetric] = useState<'co2' | 'biomass'>('co2');
+  
+  // Scenario Management State
+  const [savedScenarios, setSavedScenarios] = useState<SimulationScenario[]>(() => {
+    const saved = localStorage.getItem('afforestation_scenarios');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [isScenarioModalOpen, setIsScenarioModalOpen] = useState(false);
+  const [newScenarioName, setNewScenarioName] = useState('');
+
+  const saveScenario = () => {
+    if (!newScenarioName.trim()) return;
+    
+    const newScenario: SimulationScenario = {
+      id: crypto.randomUUID(),
+      name: newScenarioName.trim(),
+      timestamp: Date.now(),
+      parameters: {
+        selectedSpeciesIds,
+        treeCount,
+        years,
+        soilType,
+        rainfallLevel,
+        managementLevel,
+        isComparisonMode
+      }
+    };
+
+    const updated = [newScenario, ...savedScenarios];
+    setSavedScenarios(updated);
+    localStorage.setItem('afforestation_scenarios', JSON.stringify(updated));
+    setNewScenarioName('');
+  };
+
+  const loadScenario = (scenario: SimulationScenario) => {
+    const { parameters } = scenario;
+    setSelectedSpeciesIds(parameters.selectedSpeciesIds);
+    setTreeCount(parameters.treeCount);
+    setYears(parameters.years);
+    setSoilType(parameters.soilType);
+    setRainfallLevel(parameters.rainfallLevel);
+    setManagementLevel(parameters.managementLevel as 'good' | 'poor');
+    setIsComparisonMode(parameters.isComparisonMode);
+    setIsScenarioModalOpen(false);
+  };
+
+  const deleteScenario = (id: string) => {
+    const updated = savedScenarios.filter(s => s.id !== id);
+    setSavedScenarios(updated);
+    localStorage.setItem('afforestation_scenarios', JSON.stringify(updated));
+  };
 
   const getEnvMultiplier = (species: TreeSpecies) => {
     let multiplier = 1.0;
@@ -256,6 +311,13 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsScenarioModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-800 hover:bg-emerald-700 transition-colors rounded-lg text-sm font-medium border border-emerald-700"
+            >
+              <FolderOpen className="w-4 h-4" />
+              Scenarios
+            </button>
             <button 
               onClick={handleExportCSV}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-800 hover:bg-emerald-700 transition-colors rounded-lg text-sm font-medium border border-emerald-700"
@@ -786,6 +848,105 @@ export default function App() {
               <p className="text-xs text-slate-500 mt-2">Projected population decline based on regional survival rates.</p>
             </div>
           </section>
+          {/* Comparative Growth Analysis */}
+          <section className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-50 rounded-lg">
+                  <TrendingUp className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Comparative Biomass Growth</h2>
+                  <p className="text-sm text-slate-500">Projected biomass accumulation per tree across selected species</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span>High Potential</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <span>Moderate</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-[400px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={comparisonData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="year" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    label={{ value: 'Years After Planting', position: 'insideBottom', offset: -10, fill: '#94a3b8', fontSize: 10 }}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    label={{ value: 'Biomass (kg / tree)', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#fff', 
+                      borderRadius: '12px', 
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
+                    }}
+                    labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
+                    formatter={(value: number) => [`${value} kg`, '']}
+                  />
+                  <Legend 
+                    verticalAlign="top" 
+                    align="right" 
+                    iconType="circle"
+                    wrapperStyle={{ paddingBottom: '20px', fontSize: '12px', fontWeight: 600 }}
+                  />
+                  {selectedSpeciesList.map((species, index) => (
+                    <Line 
+                      key={species.id}
+                      type="monotone" 
+                      dataKey={`biomass_${species.id}`} 
+                      stroke={COLORS[index % COLORS.length]} 
+                      strokeWidth={3} 
+                      dot={false} 
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                      name={species.name}
+                      animationDuration={1500}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {selectedSpeciesList.map((species, index) => {
+                const finalBiomass = comparisonData[comparisonData.length - 1][`biomass_${species.id}`];
+                const initialBiomass = comparisonData[0][`biomass_${species.id}`];
+                const growthRate = ((finalBiomass - initialBiomass) / years).toFixed(1);
+                
+                return (
+                  <div key={species.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                      <span className="text-sm font-bold text-slate-700">{species.name}</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-bold text-slate-900">{finalBiomass}</span>
+                      <span className="text-xs font-medium text-slate-400">kg total</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-medium uppercase mt-1">
+                      Avg. Growth: <span className="text-emerald-600">+{growthRate} kg/yr</span>
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
           {/* Environmental Impact Visualization */}
           <section className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex items-center gap-3 mb-6">
@@ -869,6 +1030,132 @@ export default function App() {
           </section>
         </div>
       </main>
+
+      {/* Scenario Management Modal */}
+      <AnimatePresence>
+        {isScenarioModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200"
+            >
+              <div className="bg-emerald-900 p-6 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500/20 rounded-lg">
+                    <FolderOpen className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">Simulation Scenarios</h2>
+                    <p className="text-emerald-200/70 text-sm">Save and load your simulation configurations</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsScenarioModalOpen(false)}
+                  className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Save New Scenario */}
+                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                  <h3 className="text-sm font-bold text-emerald-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Save className="w-4 h-4" />
+                    Save Current Configuration
+                  </h3>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="Scenario name (e.g., Tropical Reforestation 2026)"
+                      value={newScenarioName}
+                      onChange={(e) => setNewScenarioName(e.target.value)}
+                      className="flex-1 px-4 py-2 rounded-xl border border-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                    />
+                    <button 
+                      onClick={saveScenario}
+                      disabled={!newScenarioName.trim()}
+                      className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold rounded-xl transition-all flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Save
+                    </button>
+                  </div>
+                </div>
+
+                {/* Saved Scenarios List */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4" />
+                    Saved Configurations ({savedScenarios.length})
+                  </h3>
+                  
+                  <div className="max-h-[300px] overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                    {savedScenarios.length === 0 ? (
+                      <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        <FolderOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                        <p className="text-slate-500 font-medium">No saved scenarios yet</p>
+                        <p className="text-slate-400 text-xs">Save your current parameters to see them here</p>
+                      </div>
+                    ) : (
+                      savedScenarios.map((scenario) => (
+                        <div 
+                          key={scenario.id}
+                          className="group flex items-center justify-between p-4 bg-white border border-slate-200 rounded-2xl hover:border-emerald-500 hover:shadow-md transition-all"
+                        >
+                          <div className="flex-1 cursor-pointer" onClick={() => loadScenario(scenario)}>
+                            <h4 className="font-bold text-slate-900 group-hover:text-emerald-600 transition-colors">
+                              {scenario.name}
+                            </h4>
+                            <div className="flex items-center gap-3 mt-1">
+                              <span className="text-[10px] text-slate-400 font-medium uppercase">
+                                {new Date(scenario.timestamp).toLocaleDateString()}
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-bold">
+                                {scenario.parameters.treeCount.toLocaleString()} Trees
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded font-bold">
+                                {scenario.parameters.years} Years
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => loadScenario(scenario)}
+                              className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                              title="Load Scenario"
+                            >
+                              <ChevronRight className="w-5 h-5" />
+                            </button>
+                            <button 
+                              onClick={() => deleteScenario(scenario.id)}
+                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete Scenario"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-end">
+                <button 
+                  onClick={() => setIsScenarioModalOpen(false)}
+                  className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Policy Brief Modal */}
       <AnimatePresence>

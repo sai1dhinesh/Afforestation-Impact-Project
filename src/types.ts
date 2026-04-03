@@ -115,3 +115,18 @@ export interface SimulationResult {
   co2High?: number;
   survivalCount: number;
 }
+
+export interface SimulationScenario {
+  id: string;
+  name: string;
+  timestamp: number;
+  parameters: {
+    selectedSpeciesIds: string[];
+    treeCount: number;
+    years: number;
+    soilType: SoilType;
+    rainfallLevel: RainfallLevel;
+    managementLevel: 'poor' | 'average' | 'good';
+    isComparisonMode: boolean;
+  };
+}
