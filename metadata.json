@@ -1,0 +1,5 @@
+{
+  "name": "Afforestation Impact Modeler",
+  "description": "A tool to estimate and visualize long-term CO2 sequestration from tree-planting projects based on species growth rates and survival data.",
+  "requestFramePermissions": []
+}
